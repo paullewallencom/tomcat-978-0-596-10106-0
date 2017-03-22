@@ -1,0 +1,28 @@
+Table 1-1. Tomcat Invocation Scripts
+=====================================
+
+Script 									Purpose
+=====================================
+
+catalina								The main Tomcat script. 
+																This runs the java command to invoke the 
+																Tomcat startup and shutdown classes.
+
+cpappend								This is used internally, 
+																and then only on Windows systems, 
+																to append items to Tomcat classpath 
+																environment variables.
+
+digest
+
+service
+
+setclasspath
+
+shutdown
+
+startup
+
+tool-wrapper
+
+version
