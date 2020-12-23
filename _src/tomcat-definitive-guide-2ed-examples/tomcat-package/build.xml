@@ -1,0 +1,359 @@
+<?xml version="1.0"?>
+
+<!-- ==================================================================== -->
+<!-- The Tomcat servlet container package top level Ant build file.       -->
+<!--                                                                      -->
+<!-- To start the build, run the command:                                 -->
+<!--   $ ant                                                              -->
+<!-- And, to see a summary of build targets, run:                         -->
+<!--   $ ant -projecthelp                                                 -->
+<!--                                                                      -->
+<!-- In order to use the upload-release target of this build file, you    -->
+<!-- must install the jsch.jar into your Ant lib dir $ANT_HOME/lib/.      -->
+<!-- Get it from http://www.jcraft.com/jsch/                              -->
+<!--                                                                      -->
+<!-- $Id: build.xml 89 2007-06-14 05:41:55Z jasonb $ -->
+<!-- ==================================================================== -->
+
+<project name="tomcat-package" default="build">
+
+  <!-- =================== Initialize Property Values =================== -->
+
+  <!-- This one has to come first so that it doesn't get overridden. -->
+  <property name="component.name" value="tomcat"/>
+
+  <!-- Load any build override settings from the user's home dir. -->
+  <property
+      file="${user.home}/.apache/${component.name}-build.properties"/>
+
+  <!-- Load the package version numbers from version.properties file.      -->
+  <!-- If package.rev or package.version are already defined, the line     -->
+  <!-- below doesn't change them.  These tends to change a often, so they  -->
+  <!-- have their own file.                                                -->
+  <property file="${basedir}/version.properties"/>
+
+  <!-- Packaging and release settings. -->
+  <property name="package.name" value="${component.name}"/>
+  <property name="svn.base.url"
+            value="svn://webdroid.org/repo/tomcat-package"/>
+  <property name="svn.user" value="jasonb"/>
+  <property name="archive.user" value="jasonb"/>
+  <property name="archive.host" value="webdroid.org"/>
+  <property name="archive.dir" value="/opt/archives"/>
+
+  <!-- Directories. -->
+  <property name="build.dir" value="${basedir}/build"/>
+  <property name="dist.dir" value="${basedir}/dist"/>
+  <property name="test.dir" value="${build.dir}/test"/>
+
+  <!-- Private properties. -->
+  <property name="tomcat.name" value="tomcat-${package.version}"/>
+  <property name="jvm.id" value="${package.name}"/>
+  <property name="tomcat.user" value="tomcat"/>
+  <property name="tomcat.uid" value="46"/>
+  <property name="tomcat.group" value="nobody"/>
+  <property name="tomcat.gid" value="99"/>
+
+  <!-- =================== Externally-exposed Targets =================== -->
+
+  <target name="build" depends="prep, assemble"
+          description="Builds the Tomcat package.">
+    <antcall target="package"/>
+    <antcall target="tgz"/>
+  </target>
+
+  <target name="prep"
+          description="Creates the build directory structure.">
+    <mkdir dir="${build.dir}"/>
+    <mkdir dir="${dist.dir}"/>
+  </target>
+
+  <target name="clean"
+          description="Cleans everything (build and dist).">
+    <delete dir="build"/>
+    <delete dir="dist"/>
+  </target>
+
+  <target name="docs"
+          description="Generates any/all developer documentation.">
+    <echo>Currently, no documentation is to be built for ${component.name}.
+    </echo>
+  </target>
+
+  <target name="test"
+          description="Builds and runs all tests.">
+    <echo>There are currently no tests for the ${component.name} component.
+    </echo>
+  </target>
+
+  <target name="release" depends="clean, build, pack-src"
+          description="Tags the component and makes archives of it available.">
+    <antcall target="tag"/>
+    <antcall target="upload-release"/>
+  </target>
+
+  <target name="release-notag" depends="clean, build, pack-src"
+          description="Makes the archives available without tagging them.">
+    <!-- Make sure ".untagged" is in the package.rev property -->
+    <condition property="halt.message"
+               value="The package.rev property must end with '.untagged'.">
+      <not>
+        <contains string="${package.rev}" substring=".untagged"/>
+      </not>
+    </condition>
+
+    <antcall target="upload-release"/>
+
+    <!-- This only creates output if halt.message was already set. -->
+    <property name="halt.message" value=""/>
+    <echo>${halt.message}</echo>
+  </target>
+
+  <target name="all" depends="build, docs, test"
+          description="Builds the binaries and all documentation.">
+  </target>
+
+  <target name="help"
+          description="Points people to the -projecthelp switch.">
+    <echo>Try "ant -projecthelp" for info on build targets.
+    </echo>
+  </target>
+
+  <!-- ================== Internal/Private Targets ====================== -->
+
+  <!-- ================================================================== -->
+  <!-- Creates a tag in the source repository of the working copy's       -->
+  <!-- source.  This target generates tag names in the format             -->
+  <!-- ${package.name}-${package.version}-${package.rev}                  -->
+  <!-- Example: tomcat-6-2-28-23                                          -->
+  <!-- ================================================================== -->
+  <target name="tag">
+    <!-- Generate the tag name.  To do this we must use the replace task  -->
+    <!-- to replace dots with dashes.                                     -->
+    <property name="tag.base.name"
+              value="${package.name}-${package.version}"/>
+    <property name="temp.tag.name"
+              value="${tag.base.name}-${package.rev}"/>
+    <property name="temp.tag.file" value="${build.dir}/${temp.tag.name}"/>
+    <echo file="${temp.tag.file}">tagname=${temp.tag.name}</echo>
+    <replace file="${temp.tag.file}" token="." value="-"/>
+    <property file="${temp.tag.file}"/>
+    <delete file="${temp.tag.file}"/>
+
+    <!-- Read in some working copy properties like ${Revision}. -->
+    <exec executable="svn" output="rev.txt">
+      <arg line="info"/>
+    </exec>
+    <property file="rev.txt"/>
+    <delete file="rev.txt"/>
+
+    <!-- Show the user info about what they're tagging. -->
+    <exec executable="svn">
+      <arg line="info"/>
+    </exec>
+    <echo>The last change to this revision was:</echo>
+    <exec executable="svn">
+      <arg line="log -r ${Revision}"/>
+    </exec>
+    <echo>If this is not the last change you wish to tag, hit ctrl-c here
+      and do "svn update" before trying again.  Otherwise hit enter:</echo>
+    <input/>
+    <echo>Creating tag ${tagname} in the repository..</echo>
+
+    <!-- Tag the component in Subversion. -->
+    <exec executable="svn">
+      <arg line="cp --username ${svn.user} ${svn.base.url}/trunk
+                    ${svn.base.url}/tags/${tagname} -r ${Revision}"/>
+    </exec>
+  </target>
+
+  <!-- ================================================================== -->
+  <!-- Uploads the release binaries (built from this build system) to the -->
+  <!-- binary archive server for distribution and archival purposes.      -->
+  <!-- ================================================================== -->
+  <target name="upload-release" unless="halt.message">
+    <property name="archive.base.minus.name"
+              value="${package.version}-${package.rev}"/>
+    <property name="archive.base.name"
+              value="${package.name}-${archive.base.minus.name}"/>
+    <property name="archive.compat.name"
+              value="${package.name}-compat-${archive.base.minus.name}"/>
+    <property name="archive.admin.name"
+              value="${package.name}-admin-${archive.base.minus.name}"/>
+    <property name="scp.user.host"
+              value="${archive.user}@${archive.host}"/>
+    <property name="scp.destination"
+              value="${scp.user.host}:${archive.dir}/${ant.project.name}"/>
+
+    <!-- Upload the main Tomcat tar.gz file. -->
+    <scp file="${dist.dir}/${archive.base.name}.tar.gz"
+         todir="${scp.destination}"
+         password="${password}" trust="true"/>
+
+    <!-- Upload the main Tomcat RPM package. -->
+    <scp file="${dist.dir}/${archive.base.name}.noarch.rpm"
+         todir="${scp.destination}"
+         password="${password}"
+         failonerror="false" trust="true"/>
+
+    <!-- Upload the Tomcat SRC RPM package. -->
+    <scp file="${dist.dir}/${archive.base.name}.src.rpm"
+         todir="${scp.destination}"
+         password="${password}"
+         failonerror="false" trust="true"/>
+
+    <!-- Upload the Tomcat package source tar.gz file. -->
+    <scp file="${dist.dir}/${archive.base.name}-src.tar.gz"
+         todir="${scp.destination}"
+         password="${password}"
+         failonerror="false" trust="true"/>
+  </target>
+
+  <!-- ================================================================== -->
+  <!-- Generates a native package of the product of the build.            -->
+  <!-- ================================================================== -->
+  <target name="package">
+    <echo>Generating the ${package.name} RPM and SRPM packages.</echo>
+
+    <!-- Build the RPM and SRPM by invoking the rpmbuild command. -->
+    <exec executable="rpmbuild" dir="${build.dir}/SPECS" failonerror="false"
+          resultproperty="exec.result">
+      <arg line="-ba ${package.name}.spec"/>
+
+      <!-- Strip out loud warnings we don't care about. -->
+      <redirector error="${build.dir}/rpmbuild.log"
+                  output="${build.dir}/rpmbuild.log" createemptyfiles="false">
+        <errorfilterchain>
+          <striplinecomments>
+            <comment value="warning: File listed twice:"/>
+            <comment value="    File listed twice:"/>
+            <comment value="file_contexts:  invalid context"/>
+          </striplinecomments>
+        </errorfilterchain>
+      </redirector>
+    </exec>
+
+    <!-- Show the (filtered) output from rpmbuild. -->
+    <concat>
+      <fileset dir="${build.dir}" includes="rpmbuild.log"/>
+    </concat>
+
+    <!-- Fail the build if the rpmbuild binary returned a nonzero result. -->
+    <fail message="rpmbuild failure.">
+      <condition>
+        <not>
+          <equals arg1="${exec.result}" arg2="0"/>
+        </not>
+      </condition>
+    </fail>
+
+    <!-- Move the RPM(s) and SRPM(s) into the dist dir. -->
+    <move todir="${dist.dir}">
+      <fileset dir="${build.dir}/RPMS/noarch" includes="*.rpm"/>
+      <fileset dir="${build.dir}/SRPMS" includes="*.rpm"/>
+    </move>
+  </target>
+
+  <!-- ================================================================== -->
+  <!-- Generates a tar.gz archive of the product of Tomcat's build.       -->
+  <!-- ================================================================== -->
+  <target name="tgz">
+    <property name="version-rev" value="${package.version}-${package.rev}"/>
+    <property name="tar.name"
+              value="${package.name}-${version-rev}.tar"/>
+    <property name="tar.compat.name"
+              value="${package.name}-compat-${version-rev}.tar"/>
+    <property name="tar.admin.name"
+              value="${package.name}-admin-${version-rev}.tar"/>
+
+    <!-- Make a tar.gz snapshot of Tomcat's main package's content. -->
+    <tar tarfile="${dist.dir}/${tar.name}" longfile="gnu"
+         basedir="${build.dir}/BUILD/${package.name}" includes="**"/>
+    <gzip src="${dist.dir}/${tar.name}"
+          zipfile="${dist.dir}/${tar.name}.gz"/>
+    <delete file="${dist.dir}/${tar.name}"/>
+  </target>
+
+  <!-- ================================================================== -->
+  <!-- This target is for assembling directory trees of files that will   -->
+  <!-- be archived, or packaged.                                          -->
+  <!-- ================================================================== -->
+  <target name="assemble" depends="prep">
+    <!-- Create a set of RPM building dirs. -->
+    <mkdir dir="${build.dir}/BUILD"/>
+    <mkdir dir="${build.dir}/RPMS/noarch"/>
+    <mkdir dir="${build.dir}/SOURCES"/>
+    <mkdir dir="${build.dir}/SPECS"/>
+    <mkdir dir="${build.dir}/SRPMS"/>
+
+    <!-- Copy the spec file into the SPECS dir, and replace token values. -->
+    <copy file="conf/tomcat.spec"
+          toFile="${build.dir}/SPECS/${package.name}.spec" overwrite="true"/>
+    <replace file="${build.dir}/SPECS/${package.name}.spec"
+             token="@PACKAGE_NAME@" value="${package.name}"/>
+    <replace file="${build.dir}/SPECS/${package.name}.spec"
+             token="@JVM_ID@" value="${jvm.id}"/>
+    <replace file="${build.dir}/SPECS/${package.name}.spec"
+             token="@VERSION@" value="${package.version}"/>
+    <replace file="${build.dir}/SPECS/${package.name}.spec"
+             token="@BUILD_SERIAL@" value="${package.rev}"/>
+    <replace file="${build.dir}/SPECS/${package.name}.spec"
+             token="@TOMCAT_USER@" value="${tomcat.user}"/>
+    <replace file="${build.dir}/SPECS/${package.name}.spec"
+             token="@TOMCAT_UID@" value="${tomcat.uid}"/>
+    <replace file="${build.dir}/SPECS/${package.name}.spec"
+             token="@TOMCAT_GROUP@" value="${tomcat.group}"/>
+    <replace file="${build.dir}/SPECS/${package.name}.spec"
+             token="@TOMCAT_GID@" value="${tomcat.gid}"/>
+    <replace file="${build.dir}/SPECS/${package.name}.spec"
+             token="@TOP_DIR@" value="${build.dir}"/>
+
+    <!-- Copy the Tomcat tar.gz into the SOURCES dir. -->
+    <copy file="${basedir}/apache-${tomcat.name}.tar.gz"
+          todir="${build.dir}/SOURCES"/>
+
+    <!-- Copy the package's bin files into the SOURCES dir. -->
+    <copy todir="${build.dir}/SOURCES">
+      <fileset dir="${basedir}/bin" includes="*"/>
+    </copy>
+    <move file="${build.dir}/SOURCES/init.linux"
+          tofile="${build.dir}/SOURCES/${package.name}-init.linux"/>
+
+    <!-- Copy tomcat-env.sh to the SOURCES dir. -->
+    <copy file="${basedir}/conf/tomcat-env.sh"
+      tofile="${build.dir}/SOURCES/${package.name}-env.sh"/>
+  </target>
+
+  <!-- Copy the custom Tomcat configs into the conf dir. -->
+  <copy todir="${build.dir}/SOURCES">
+    <fileset dir="${basedir}/conf"
+             includes="server.xml,tomcat-users.xml,web.xml,
+                       catalina.properties,logging.properties,ROOT.xml"/>
+  </copy>
+
+  <!-- ================================================================== -->
+  <!-- Generates a tar.gz archive of the source of this component.        -->
+  <!-- ================================================================== -->
+  <target name="pack-src">
+    <delete dir="${build.dir}/${ant.project.name}"/>
+
+    <!-- Pull a copy of this component's source. -->
+    <echo>Pulling a copy of the source code from the repository..</echo>
+    <exec executable="svn" failonerror="true">
+      <arg line="export ${svn.base.url}/trunk 
+                   ${build.dir}/${ant.project.name}"/>
+    </exec>
+
+    <property name="version-rev" value="${package.version}-${package.rev}"/>
+    <property name="src.tar.name"
+              value="${package.name}-${version-rev}-src.tar"/>
+
+    <!-- Make a src.tar.gz snapshot of this component's source. -->
+    <tar tarfile="${dist.dir}/${src.tar.name}" longfile="gnu"
+         basedir="${build.dir}/${ant.project.name}" includes="**"/>
+    <gzip src="${dist.dir}/${src.tar.name}"
+          zipfile="${dist.dir}/${src.tar.name}.gz"/>
+    <delete file="${dist.dir}/${src.tar.name}"/>
+  </target>
+
+</project>

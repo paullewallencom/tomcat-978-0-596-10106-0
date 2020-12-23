@@ -1,0 +1,18 @@
+<project name="Hello World Web Site" 
+         default="war" 
+         basedir=".">
+ 
+  <!-- Build the WAR file. -->
+  <target name="war"
+          description=”Builds the WAR file.”>
+    <war destfile="${deploy.war}"
+         webxml="${basedir}/webapp-dir/WEB-INF/web.xml"
+         basedir="${basedir}/webapp-dir"
+         excludes="WEB-INF/**/*">
+      <lib dir="${basedir}/webapp-dir/WEB-INF/lib"/>
+      <webinf dir="${basedir}/webapp-dir/WEB-INF"
+              excludes="web.xml"/>
+      <metainf dir="${basedir}/webapp-dir/META-INF"/>
+    </war>
+  </target> 
+</project>

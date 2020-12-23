@@ -1,0 +1,5 @@
+#!/bin/sh
+ 
+TODAY="`date +%Y-%m-%d`"
+ 
+cat $CATALINA_HOME/logs/catalina.out $CATALINA_HOME/logs/*${TODAY}* | less

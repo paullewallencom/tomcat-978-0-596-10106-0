@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry path="src" kind="src"/>
+	<classpathentry path="lib/servlet-api.jar" kind="lib"/>
+	<classpathentry path="org.eclipse.jdt.launching.JRE_CONTAINER" kind="con"/>
+	<classpathentry path="lib/catalina.jar" kind="lib"/>
+	<classpathentry path="lib/tomcat-juli.jar" kind="lib"/>
+	<classpathentry path="eclipse-bin" kind="output"/>
+</classpath>

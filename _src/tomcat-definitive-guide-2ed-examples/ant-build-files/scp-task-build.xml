@@ -1,0 +1,69 @@
+<project name="Hello World Webapp" default="war"
+         basedir=".">
+
+  <!-- Store the username and password in a separate file 
+       that only my user can read. -->
+  <property file="user-pass.properties"/>
+
+  <!-- Webapp and deployment properties. -->
+  <property name="webapp.dir" value="webapp-dir"/>
+  <property name="deploy.dir"
+            value="/opt/tomcat/webapps"/>
+  <property name="deploy.war" value="/tmp/hello.war"/>
+
+  <!-- Set the context path. -->
+  <property name="context.path" value="hello"/>
+ 
+  <!-- The remote machine on which Tomcat is running. -->
+  <property name="tomcat-server" value="localhost"/>
+
+  <!-- Build the war file. -->
+  <target name="war">
+    <war destfile="${deploy.war}"
+         webxml="${basedir}/webapp-dir/WEB-INF/web.xml"
+         basedir="${basedir}/webapp-dir"
+         excludes="WEB-INF/**/*">
+      <lib dir="${basedir}/webapp-dir/WEB-INF/lib"/>
+      <webinf dir="${basedir}/webapp-dir/WEB-INF"
+              excludes="web.xml"/>
+      <metainf dir="${basedir}/webapp-dir/META-INF"/>
+    </war>
+  </target>
+ 
+  <!-- Deploy the webapp, when new. -->
+  <target name="deploy" depends="war, undeploy"
+          description="Deploys the webapp.">
+    <property name="scp.dest"
+      value="${user}@${tomcat-server}:${deploy.dir}"/>
+    <scp file="${deploy.war}"
+         remoteTofile="${scp.dest}/${context.path}.war"
+         password="${pass}"/>
+  </target>
+ 
+  <!-- Restart Tomcat, including the webapp(s). -->
+  <target name="restart"
+          description="Restarts Tomcat.">
+    <echo>Restarting Tomcat.</echo>
+    <sshexec host="${tomcat-server}"
+	          username="${user}"
+	          password="${pass}"
+	          command="service tomcat restart"/>
+  </target>
+
+  <target name="undeploy"
+          description="Undeploys the webapp.">
+    <property name="deployed.war"
+              value="${deploy.dir}/${context.path}.war"/>
+    <echo>Removing remote webapp ${deployed.war}</echo>
+    <sshexec host="${tomcat-server}"
+	          username="${user}"
+	          password="${pass}"
+	          command="rm -f ${deployed.war}"/>
+  </target>
+
+  <target name="clean"
+          description="Cleans the build.">
+    <delete file="${deploy.war}"/>
+  </target>
+
+</project>

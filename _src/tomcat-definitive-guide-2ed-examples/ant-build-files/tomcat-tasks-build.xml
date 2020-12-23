@@ -1,0 +1,81 @@
+<project name="Hello World Webapp" default="war"
+         basedir=".">
+
+  <!-- Point this build file to the Tomcat installation. -->
+  <property name="catalina.home" value="/opt/tomcat"/>
+
+  <!-- Store the username and password in a separate file 
+       that only my user can read. -->
+  <property file="user-pass.properties"/>
+
+  <property name="deploy.dir"
+            value="/opt/tomcat/webapps"/>
+  <property name="deploy.war" value="/tmp/hello.war"/>
+
+  <!-- Set the context path. -->
+  <property name="path" value="/hello"/>
+ 
+  <!-- Properties to access the Manager webapp. -->
+  <property name="manager.url"
+            value="http://localhost:8080/manager"/>
+
+  <path id="tomcat.lib.classpath">
+    <fileset dir="${catalina.home}/bin">
+      <include name="*.jar"/>
+    </fileset>
+    <fileset dir="${catalina.home}/lib">
+      <include name="*.jar"/>
+    </fileset>
+  </path>
+
+  <!-- Configure the custom tasks for the Manager webapp. -->
+  <taskdef
+    resource="org/apache/catalina/ant/catalina.tasks"
+    classpathref="tomcat.lib.classpath"/>
+
+  <!-- Build the war file. -->
+  <target name="war">
+    <war destfile="${deploy.war}"
+         webxml="${basedir}/webapp-dir/WEB-INF/web.xml"
+         basedir="${basedir}/webapp-dir"
+         excludes="WEB-INF/**/*">
+      <lib dir="${basedir}/webapp-dir/WEB-INF/lib"/>
+      <webinf dir="${basedir}/webapp-dir/WEB-INF"
+              excludes="web.xml"/>
+      <metainf dir="${basedir}/webapp-dir/META-INF"/>
+    </war>
+  </target>
+ 
+  <!-- Deploy the webapp, when new. -->
+  <target name="deploy" depends=”war”
+          description="Deploys the webapp.">
+    <deploy url="${manager.url}"
+            username="${user}"
+            password="${pass}”
+            path="${path}"
+            war="file://${deploy.war}"/>
+  </target>
+ 
+  <!-- Reload the webapp. -->
+  <target name="reload" depends=”war”
+          description="Reloads the webapp.">
+    <reload url="${manager.url}"
+            username="${user}"
+            password="${pass}"
+            path="${path}"/>
+  </target>
+ 
+  <!-- Get the status of all webapps. -->
+  <target name="list"
+          description="Lists all running webapps.">
+    <list url="${manager.url}"
+          username="${user}"
+          password="${pass}"/>
+  </target>
+
+  <target name="clean"
+          description="Cleans the build.">
+    <delete file="${deploy.war}"/>
+  </target>
+
+</project>
